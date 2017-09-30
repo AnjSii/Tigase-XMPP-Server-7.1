@@ -113,7 +113,7 @@
 								<dependencySourceInclude>tigase:*</dependencySourceInclude>
 							</dependencySourceIncludes>
 
-							<reportOutputDirectory>${project.reporting.outputDirectory}/docs/javadoc</reportOutputDirectory>
+							<!--<reportOutputDirectory>${project.reporting.outputDirectory}/docs/javadoc</reportOutputDirectory>-->
 							<destDir>docs/javadoc</destDir>
 
 							<finalName>${project.artifactId}-${project.version}-b${gitVersion}</finalName>

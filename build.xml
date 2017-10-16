@@ -143,7 +143,7 @@
   <mkdir dir="${reports}"/>
   <junit printsummary="yes" haltonfailure="no">
    <classpath>
-    <pathelement location="${jars}/unittests-${projectname}-${jarfile}.jar"/>
+    <pathelement location="jars-old/unittests-${projectname}-${jarfile}.jar"/>
     <fileset dir="${libs}">
      <include name="**/*.jar"/>
     </fileset>
@@ -172,7 +172,7 @@
 
  <target name="clean-all" depends="clean" description="Clean all extra files">
   <delete file="sample-junit-target.xml"/>
-  <delete file="${jars}/tigase-server*.jar"/>
+  <delete file="jars-old/tigase-server*.jar"/>
   <delete dir="dist"/>
   <delete dir="docs-${jarfile}"/>
   <delete dir="target"/>

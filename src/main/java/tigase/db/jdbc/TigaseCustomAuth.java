@@ -609,7 +609,40 @@ public class TigaseCustomAuth implements AuthRepository {
 	@Override
 	public boolean otherAuth(final Map<String, Object> props) throws UserNotFoundException,
 			TigaseDBException, AuthorizationException {
-		return true;
+		String proto = (String) props.get(PROTOCOL_KEY);
+
+		if (proto.equals(PROTOCOL_VAL_SASL)) {
+			String mech = (String) props.get(MACHANISM_KEY);
+
+			if (mech.equals("PLAIN")) {
+				try {
+					if (saslPlainAuth(props)) {
+						return true;
+					} else {
+						throw new AuthorizationException("Authentication failed.");
+					}
+				} catch (TigaseStringprepException ex) {
+					throw new AuthorizationException("Stringprep failed for: " + props, ex);
+				}
+			} else {
+				return saslAuth(props);
+			}
+		} // end of if (proto.equals(PROTOCOL_VAL_SASL))
+
+		if (proto.equals(PROTOCOL_VAL_NONSASL)) {
+			String password = (String) props.get(PASSWORD_KEY);
+			BareJID user_id = (BareJID) props.get(USER_ID_KEY);
+			if (password != null) {
+				return plainAuth(user_id, password);
+			}
+			String digest = (String) props.get(DIGEST_KEY);
+			if (digest != null) {
+				String digest_id = (String) props.get(DIGEST_ID_KEY);
+				return digestAuth(user_id, digest, digest_id, "SHA");
+			}
+		} // end of if (proto.equals(PROTOCOL_VAL_SASL))
+
+		throw new AuthorizationException("Protocol is not supported.");
 	}
 
 	@Override

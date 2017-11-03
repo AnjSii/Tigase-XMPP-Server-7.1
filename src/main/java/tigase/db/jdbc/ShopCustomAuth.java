@@ -1,27 +1,26 @@
 package tigase.db.jdbc;
 
-import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
-import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-import javax.security.sasl.AuthorizeCallback;
-import javax.security.sasl.RealmCallback;
-import javax.security.sasl.Sasl;
-import javax.security.sasl.SaslException;
-import javax.security.sasl.SaslServer;
-
+import org.apache.http.HttpResponse;
+import org.apache.http.client.CookieStore;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.BasicCookieStore;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
+import org.nutz.json.Json;
+import tigase.auth.callbacks.XMPPSessionCallback;
+import tigase.cluster.api.SessionManagerClusteredIfc;
 import tigase.db.AuthRepository;
 import tigase.db.AuthorizationException;
 import tigase.db.DBInitException;
@@ -30,10 +29,12 @@ import tigase.db.RepositoryFactory;
 import tigase.db.TigaseDBException;
 import tigase.db.UserExistsException;
 import tigase.db.UserNotFoundException;
-import tigase.util.Algorithms;
-import tigase.util.Base64;
-import tigase.util.TigaseStringprepException;
+import tigase.server.xmppsession.SessionManager;
 import tigase.xmpp.BareJID;
+import tigase.xmpp.JID;
+import tigase.xmpp.NotAuthorizedException;
+import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.XMPPSession;
 
 import static tigase.db.AuthRepository.Meta;
 
@@ -228,6 +229,49 @@ public class ShopCustomAuth implements AuthRepository {
 	}
 
 	@Override
+	public boolean otherAuth(Map<String, Object> authProps) throws UserNotFoundException, TigaseDBException, AuthorizationException {
+		String password = (String) authProps.get(PASSWORD_KEY);
+		BareJID user_id = (BareJID) authProps.get(USER_ID_KEY);
+
+		DefaultHttpClient client = new DefaultHttpClient(new PoolingClientConnectionManager());
+		Map<String, Boolean> pet = new HashMap<>();
+		HttpContext httpContext = new BasicHttpContext();
+		HttpGet httpGet;
+		if (password.indexOf("TM-TOKEN") != -1) {
+			httpGet = new HttpGet("http://localhost:8088/shop-intf/tokenAuth?userName=" + user_id.getLocalpart());
+			httpGet.addHeader(new BasicHeader("Authorization",  password));
+		} else {
+			httpGet = new HttpGet("http://localhost:8088/shop-front/cookieAuth.htm?userName=" + user_id.getLocalpart());
+			CookieStore cookieStore = new BasicCookieStore();
+			client.setCookieStore(cookieStore);
+			httpGet.addHeader(new BasicHeader("Cookie", "sid=" + password));
+		}
+
+		try {
+			// 将HttpContext对象作为参数传给execute()方法,则HttpClient会把请求响应交互过程中的状态信息存储在HttpContext中
+			HttpResponse response = client.execute(httpGet, httpContext);
+			System.out.println(response.getStatusLine().getStatusCode() + " " + response.getStatusLine().getReasonPhrase());
+			if (response.getStatusLine().getStatusCode() == 200) {
+				String result = EntityUtils.toString(response.getEntity());
+				// 生成 JSON 对象
+				pet = Json.fromJson(Map.class, result);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			client.getConnectionManager().shutdown();
+		}
+
+		if (pet.get("success")) {
+			System.out.println("成功");
+			return true;
+		} else {
+			System.out.println("失败");
+			return false;
+		}
+	}
+
+	@Override
 	public boolean plainAuth(BareJID user, String password) throws UserNotFoundException, TigaseDBException, AuthorizationException {
 		return false;
 	}
@@ -260,11 +304,6 @@ public class ShopCustomAuth implements AuthRepository {
 	@Override
 	public void logout(BareJID user) throws UserNotFoundException, TigaseDBException {
 
-	}
-
-	@Override
-	public boolean otherAuth(Map<String, Object> authProps) throws UserNotFoundException, TigaseDBException, AuthorizationException {
-		return false;
 	}
 
 	@Override
